@@ -8,7 +8,7 @@ import redshift_connector
 from pathlib import Path
 from string import Template
 
-from etl_common import get_parameter, get_redshift_connection
+from mekarde.module.etl_common import get_parameter, get_redshift_connection
 
 logging.basicConfig(level=logging.INFO)
 filepath = os.path.dirname(os.path.abspath(__file__ + '/../')) + '/file'
