@@ -1,9 +1,8 @@
 from airflow import DAG
-from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
 from datetime import datetime
 
-from mekarde.module.etl_file import file_to_db
+from mekarde.mekarde.module.etl_file import file_to_db
 
 default_args = {
     'owner': 'dinda',
