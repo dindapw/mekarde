@@ -101,7 +101,8 @@ def s3_to_redshift(s3_uri, schema_name, table_name):
     except redshift_connector.error.ProgrammingError as e:
         logging.error(f's3_to_redshift, error={e}')
         error_message = e.args[0].get('M', '')
-        if error_message == 'Cannot COPY into nonexistent table test':
+        if ('nonexistent table' in error_message or
+                f'relation "{schema_name}.{table_name}" does not exist' in error_message):
             columns_create_table = ', '.join([f'{col_name} VARCHAR(max)' for col_name in transform_column_name(header)])
             columns_create_table += ', load_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
             create_table_sql = f'CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} ({columns_create_table});'
@@ -149,7 +150,6 @@ def file_to_db(source_s3_uri, schema, table):
 
     s3_to_redshift(target['s3_uri'], schema, table)
     logging.info(f'file_to_db, event=end, message="success"')
-
 
 # if __name__ == '__main__':
 #     file_to_db('s3://data.lake.mekarde2/externals/[Confidential] Mekari - Data Engineer Senior.xlsx',
