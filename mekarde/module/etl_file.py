@@ -2,16 +2,12 @@ import logging
 import os
 import time
 
-import boto3
 import pandas as pd
-import redshift_connector
-from pathlib import Path
-from string import Template
 
-from mekarde.module.etl_common import get_parameter, get_redshift_connection
+from mekarde.module.etl_common import get_parameter, get_s3_client, s3_to_redshift
 
-logging.basicConfig(level=logging.INFO)
 filepath = os.path.dirname(os.path.abspath(__file__ + '/../')) + '/file'
+logging.basicConfig(level=logging.INFO)
 
 
 def construct_source_s3_detail(s3_uri):
@@ -61,73 +57,12 @@ def transform_column_name(columns):
     return new_columns
 
 
-def s3_to_redshift(s3_uri, schema_name, table_name):
-    logging.info(f's3_to_redshift, event=start, s3_uri={s3_uri}, schema_name={schema_name}, table_name={table_name}')
-
-    logging.info(f's3_to_redshift, message="start constructing list of columns"')
-    df = pd.read_csv(s3_uri, nrows=0)
-    header = df.columns.tolist()
-    columns = ', '.join([f'{col_name}' for col_name in transform_column_name(header)])
-    logging.info(f's3_to_redshift, message="finish constructing list of columns", columns={columns}')
-
-    conn = get_redshift_connection()
-    conn.autocommit = True
-    cursor = conn.cursor()
-
-    truncate_query = Template(Path(f'{filepath}/truncate_table.sql').read_text()).substitute(
-        table_name=f'{schema_name}.{table_name}'
-    )
-
-    access_key = get_parameter('/s3/access_key')
-    secret_key = get_parameter('/s3/secret_key')
-    copy_query = Template(Path(f'{filepath}/copy_s3_to_table.sql').read_text()).substitute(
-        table_name=f'{schema_name}.{table_name}',
-        columns=columns,
-        s3_uri=s3_uri,
-        access_key=access_key,
-        secret_key=secret_key
-    )
-    copy_query_log = copy_query.replace(access_key, 'xxxxx').replace(secret_key, 'xxxxx')
-
-    try:
-        logging.info(f's3_to_redshift, message="start truncating table", query={truncate_query}')
-        cursor.execute(truncate_query)
-        logging.info(f's3_to_redshift, message="finish truncating table"')
-
-        logging.info(f's3_to_redshift, message="start copy query", query={copy_query_log}')
-        cursor.execute(copy_query)
-        logging.info(f's3_to_redshift, message="finish copy query"')
-
-    except redshift_connector.error.ProgrammingError as e:
-        logging.error(f's3_to_redshift, error={e}')
-        error_message = e.args[0].get('M', '')
-        if ('nonexistent table' in error_message or
-                f'relation "{schema_name}.{table_name}" does not exist' in error_message):
-            columns_create_table = ', '.join([f'{col_name} VARCHAR(max)' for col_name in transform_column_name(header)])
-            columns_create_table += ', load_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
-            create_table_sql = f'CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} ({columns_create_table});'
-            logging.info(f's3_to_redshift, message="start create table", query={create_table_sql}')
-            cursor.execute(create_table_sql)
-            logging.info(f's3_to_redshift, message="finish create table"')
-            logging.info(f's3_to_redshift, message="start copy query", query={copy_query_log}')
-            cursor.execute(copy_query)
-            logging.info(f's3_to_redshift, message="finish copy query"')
-        else:
-            raise e
-    except Exception as e:
-        logging.error(e)
-    finally:
-        cursor.close()
-        conn.close()
-    logging.info(f's3_to_redshift, event=end, message="success"')
-
-
 def file_to_db(source_s3_uri, schema, table):
     logging.info(f'file_to_db, event=start')
     source = construct_source_s3_detail(source_s3_uri)
     target = construct_target_s3_detail(schema, table)
 
-    s3_client = boto3.client('s3', region_name=get_parameter('/s3/data/region'))
+    s3_client = get_s3_client()
 
     if source['s3_file_extension'] == '.xlsx':
         logging.info(f'file_to_db, message="converting .xlsx file to .csv")')
@@ -135,6 +70,7 @@ def file_to_db(source_s3_uri, schema, table):
         df = pd.read_excel(source_s3_uri)
         df['source_filename'] = f"{source['s3_filename']}{source['s3_file_extension']}"
         df.to_csv(temp_csv_filepath, index=False)
+        header = df.columns.tolist()
 
         logging.info(f'file_to_db, message="uploaded .csv file to target s3")')
         s3_client.upload_file(temp_csv_filepath, target['s3_bucket'], target['s3_key'])
@@ -144,14 +80,24 @@ def file_to_db(source_s3_uri, schema, table):
             logging.info(f'file_to_db, message="moving .csv file from source s3 to target s3")')
             copy_source = {'Bucket': source['s3_bucket'], 'Key': source['s3_key']}
             s3_client.copy(copy_source, target['s3_bucket'], target['s3_key'])
+        df = pd.read_csv(target['s3_uri'], nrows=0)
+        header = df.columns.tolist()
 
     else:
         raise Exception(f"Source file type {source['s3_file_extension']} not supported")
 
-    s3_to_redshift(target['s3_uri'], schema, table)
+    columns = ', '.join([f'{col_name}' for col_name in transform_column_name(header)])
+    columns = f'({columns})'
+
+    columns_create_table = ', '.join([f'{col_name} VARCHAR(max)' for col_name in transform_column_name(header)])
+    columns_create_table += ', load_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+    create_table_query = f'CREATE TABLE IF NOT EXISTS {schema}.{table} ({columns_create_table});'
+
+    s3_to_redshift(target['s3_uri'], schema, table, create_table_query, columns)
     logging.info(f'file_to_db, event=end, message="success"')
 
-# if __name__ == '__main__':
-#     file_to_db('s3://data.lake.mekarde2/externals/[Confidential] Mekari - Data Engineer Senior.xlsx',
-#                'staging',
-#                'transactions')
+
+if __name__ == '__main__':
+    file_to_db('s3://data.lake.mekarde2/externals/[Confidential] Mekari - Data Engineer Senior.xlsx',
+               'staging',
+               'transactions')
