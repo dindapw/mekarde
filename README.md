@@ -8,26 +8,29 @@ and a folder for storing analytical queries (`analytics/`).
 
 ```bash
 ├── analytics/
-│   ├── dwh_accounts.sql                # SQL script for analytical query 1
-│   └── ...                           # Additional analytical SQL scripts
+│   ├── dwh_accounts.sql                 # SQL script for analytical related to accounts
+│   └── ...                              # Additional analytical SQL scripts
+│
 ├── dags/
-│   ├── data_001_transactions.py         # Airflow DAG for replicating data from S3 to Redshift
-│   └── ...                           # Additional DAGs for various data processes
+│   ├── data_001_transactions.py         # Airflow DAG for replicating transactions related data
+│   └── ...                              # Additional DAGs for various data processes
 │
 ├── mekarde/
 │   ├── file
-│   │   ├── copy_s3_to_table.sql
-│   │   ├── dwh_transactions_data.sql
+│   │   ├── copy_s3_to_table.sql         # Query template to copy data from s3 to table
+│   │   ├── dwh_transactions_data.sql    # Query to transform data
 │   │   └── ...
-│   ├── module             # Python module for data warehouse creation and management
+│   ├── module                           
 │   │   ├── __init__.py
-│   │   ├── etl_common.py
-│   │   ├── etl_db.py
-│   │   └── etl_file.py
-│   └── __init__.py                   # Init file for the module package
+│   │   ├── etl_common.py                # module containing common functions such as get_s3_client, get_redshift_connection, etc
+│   │   ├── etl_db.py                    # module to replicate data between redshift tables (data transformation)
+│   │   └── etl_file.py                  # module to replicate data from file to redshift table
+│   └── __init__.py                      # Init file for the module package
 │
-│
-└── README.md                         # This README file
+├── requirement.txt                      # file containing python module to be installed
+├── .gitignore                           # file containing list of folder / files to be ignored by git
+├── .airflowignore                       # file containing list of folder / files to be ignored by airflow
+└── README.md                            # This README file
 ```
 
 ## Getting Started
@@ -37,14 +40,15 @@ and a folder for storing analytical queries (`analytics/`).
 - **Python 3.9+**
 - **Apache Airflow**
 - **Amazon Redshift**
+- **Amazon System Manager**
 - **Amazon S3**
 
 ### Installation
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your_username/your_repository.git
-   cd your_repository
+   git clone https://github.com/dindapw/mekarde.git
+   cd mekarde
    ```
 
 2. **Install the required Python packages:**
@@ -63,34 +67,28 @@ and a folder for storing analytical queries (`analytics/`).
    ```bash
    cp dags/* /path_to_your_airflow_dags_folder/
    ```
+   
+3. **Add Modules:**
+   Copy the Python Module from the `mekarde/` folder into your Airflow DAGs directory:
+   ```bash
+   cp mekarde/* /path_to_your_airflow_dags_folder/mekarde
+   ```
+   then, add `mekarde/*` in your `.airflowignore` so that it's not picked up as DAG by airflow.
 
-3. **Start the Airflow Scheduler:**
+   OR add `mekarde/` into your PYTHONPATH
+
+4**Start the Airflow Scheduler:**
    ```bash
    airflow scheduler
    ```
 
-4. **Monitor DAGs:**
+5**Monitor DAGs:**
    Access the Airflow web interface to monitor and trigger DAGs.
 
 ### Usage
 
-#### Data Replication from S3 to Redshift
-
-- The `s3_to_redshift_dag.py` DAG automates the process of replicating data from S3 to Redshift. It uses the `s3_to_redshift.py` module, which handles the extraction from S3, transformation if needed, and loading into Redshift.
-
-#### Data Warehouse Creation and Management
-
-- The `data_warehouse_creation_dag.py` DAG automates the creation and management of the Redshift data warehouse. The corresponding `data_warehouse.py` module contains scripts to define schema, create tables, and manage warehouse operations.
-
-#### Analytical Queries
-
-- The `queries/` folder contains SQL scripts for performing various analytical queries on the data stored in the Redshift data warehouse.
-
-### Customization
-
-- **DAGs:** Modify the DAGs in the `dags/` folder to suit your specific data pipeline needs.
-- **Python Modules:** Extend or modify the `s3_to_redshift.py` and `data_warehouse.py` modules to implement custom logic for your ETL processes.
-- **Queries:** Add, edit, or remove SQL scripts in the `queries/` folder to perform custom data analysis.
+This module is already up and running in http://52.76.59.22:8080/.
+Credentials can be obtained separately.
 
 ### Contributing
 
@@ -105,5 +103,3 @@ and a folder for storing analytical queries (`analytics/`).
 
 For any questions, please contact [dindaparamitha.w@gmail.comm](mailto:dindaparamitha.w@gmail.comm).
 ```
-
-This `README.md` provides a clear overview of the repository structure, setup instructions, usage, and other essential information, making it easy for others to understand and use your project.
