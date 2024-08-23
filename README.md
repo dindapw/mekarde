@@ -8,7 +8,7 @@ and a folder for storing analytical queries (`analytics/`).
 
 ```bash
 ├── analytics/
-│   ├── dwh_accounts.sql                 # SQL script for analytical related to accounts
+│   ├── dwh_transaction_date.sql         # SQL script for analytical related to transaction date
 │   └── ...                              # Additional analytical SQL scripts
 │
 ├── dags/
