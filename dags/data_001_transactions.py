@@ -7,7 +7,7 @@ from mekarde.module.etl_file import file_to_db
 default_args = {
     'owner': 'dinda',
     'start_date': datetime(2024, 8, 22),
-    'retries': 1,
+    'retries': 1
 }
 
 dag = DAG(
