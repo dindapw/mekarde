@@ -15,6 +15,7 @@ dag = DAG(
     default_args=default_args,
     description='Job to replicate transactions data',
     schedule_interval='0 */2 * * *',
+    catchup=False
 )
 
 
@@ -24,8 +25,8 @@ def run_file_to_db():
                'transactions')
 
 
-hello_task = PythonOperator(
-    task_id='print_hello',
+replicate_file_to_db = PythonOperator(
+    task_id='replicate_file_to_db',
     python_callable=run_file_to_db,
     dag=dag,
 )
